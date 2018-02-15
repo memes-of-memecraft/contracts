@@ -1,6 +1,6 @@
-pragma solidity ^0.4.19;
-import "./libraries/SafeMath.sol";
-import "./libraries/Ownable.sol";
+pragma solidity ^0.4.18;
+import "./SafeMath.sol";
+
 
 contract ERC20Token {
     uint256 public totalSupply;
@@ -74,37 +74,10 @@ contract StandardToken is ERC20Token {
 }
 
 
-contract MintableToken is StandardToken, Ownable {
-    event Mint(address indexed to, uint256 amount);
-    event MintFinished();
-
-    bool public mintingFinished = false;
-
-    modifier canMint() {
-        require(!mintingFinished);
-        _;
-    }
-
-    function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
-        totalSupply = totalSupply.add(_amount);
-        balances[_to] = balances[_to].add(_amount);
-        Mint(_to, _amount);
-        Transfer(0x0, _to, _amount);
-        return true;
-    }
-
-    function finishMinting() onlyOwner public returns (bool) {
-        mintingFinished = true;
-        MintFinished();
-        return true;
-    }
-}
-
-
-contract LockableToken is MintableToken {
+contract LockableToken is StandardToken {
     using SafeMath for uint256;
 
-    uint256 totalLockedTokens;
+    uint256 public totalLockedTokens;
     mapping(address => uint256) lockedTokens;
 
     function lock(uint256 _amount) public {
@@ -148,7 +121,7 @@ contract LockableToken is MintableToken {
 
 
 contract MOMToken is LockableToken {
-    string public constant name = "MoM Token";
+    string public constant name = "MOM Token";
     string public constant symbol = "MOM";
     uint8 public constant decimals = 18;
 }
