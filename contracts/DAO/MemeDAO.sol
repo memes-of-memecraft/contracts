@@ -3,7 +3,7 @@ import "./MOMToken.sol";
 
 contract ProposerInterface{
     function votePassed(uint256 _proposalNumber, uint256 _totalLockedTokens, bytes32 _proposalHash) public returns (bool);
-    function executionSuccess(uint256 _proposalNumber) public returns (bool);
+    function executionSuccess(uint256 proposalNumber) public returns (bool);
 }
 
 // MemeDAO is the set as the owner of both the Proposer (voting) and MotherOfMemes (ERC721)
@@ -24,7 +24,7 @@ contract MemeDAO is MOMToken {
     /// PUBLIC FUNCTIONS
     function() public payable {}
 
-    function execute(address destination, uint256 value, bytes data, uint256 proposalNumber) public {
+    function execute(uint256 proposalNumber, uint256 value, address destination, bytes data) public {
         bytes32 proposalHash = keccak256(destination, value, data);
         require(proposer.votePassed(proposalNumber, totalLockedTokens, proposalHash));
         require(destination.call.value(value)(data));

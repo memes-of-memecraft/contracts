@@ -25,38 +25,39 @@ contract Proposer is Ownable {
      uint256 yesVotes;
      uint256 noVotes;
      uint256 startTime;
-     bytes32 dataHash;
+     bytes32 proposalHash;
      bool enacted;
      mapping(address => bool) alreadyVoted;
   }
 
 
-  function propose(uint256 _proposalNumber, bytes32 _dataHash) public {
-      require(proposalExists[_proposalNumber] == false);
+  function propose(uint256 proposalNumber, uint256 value, address destination, bytes data) public {
+      require(proposalExists[proposalNumber] == false);
       require(dao.lockedBalance(msg.sender) > 0);
-      Proposal memory newProposal = Proposal(0, 0, now, _dataHash, false);
-      proposals[_proposalNumber] = newProposal;
-      proposalExists[_proposalNumber] == true;
-      ProposedVote(msg.sender, _proposalNumber);
+      bytes32 newProposalHash = keccak256(destination, value, data);
+      Proposal memory newProposal = Proposal(0, 0, now, newProposalHash, false);
+      proposals[proposalNumber] = newProposal;
+      proposalExists[proposalNumber] == true;
+      ProposedVote(msg.sender, proposalNumber);
   }
 
-  function vote(uint256 _proposalNumber, bool _voteType) public {
-      var prop = proposals[_proposalNumber];
+  function vote(uint256 proposalNumber, bool voteType) public {
+      var prop = proposals[proposalNumber];
       require(prop.alreadyVoted[msg.sender] == false);
       require(now <= prop.startTime.add(proposalDuration));
       uint256 voteCount = dao.lockedBalance(msg.sender);
       require(voteCount > 0);
-      if (_voteType) {
+      if (voteType) {
           prop.yesVotes = prop.yesVotes.add(voteCount);
       } else {
           prop.noVotes = prop.noVotes.add(voteCount);
       }
-      Vote(msg.sender, _voteType, voteCount);
+      Vote(msg.sender, voteType, voteCount);
       prop.alreadyVoted[msg.sender] = true;
   }
-
-  function executionSuccess(uint256 _proposalNumber) public onlyOwner returns (bool) {
-     var prop = proposals[_proposalNumber];
+  
+  function executionSuccess(uint256 proposalNumber) public onlyOwner returns (bool) {
+     var prop = proposals[proposalNumber];
      prop.enacted = true;
      return true;
   }
@@ -73,28 +74,28 @@ contract Proposer is Ownable {
       voteThreshold = newThreshold;
   }
 
-  function viewProposal(uint256 _proposalNumber) public view returns (
+  function viewProposal(uint256 proposalNumber) public view returns (
       uint256 yesVotes,
       uint256 noVotes,
       uint256 startTime,
-      bytes32 dataHash,
+      bytes32 proposalHash,
       bool enacted
   )
   {
-      yesVotes = proposals[_proposalNumber].yesVotes;
-      noVotes = proposals[_proposalNumber].noVotes;
-      startTime = proposals[_proposalNumber].startTime;
-      dataHash = proposals[_proposalNumber].dataHash;
-      enacted = proposals[_proposalNumber].enacted;
+      yesVotes = proposals[proposalNumber].yesVotes;
+      noVotes = proposals[proposalNumber].noVotes;
+      startTime = proposals[proposalNumber].startTime;
+      proposalHash = proposals[proposalNumber].proposalHash;
+      enacted = proposals[proposalNumber].enacted;
   }
 
-  function votePassed(uint256 _proposalNumber, uint256 _totalLockedTokens, bytes32 _dataHash) public view returns (bool) {
-      var prop = proposals[_proposalNumber];
-      bool dataMatch = prop.dataHash == _dataHash;
+  function votePassed(uint256 proposalNumber, uint256 totalLockedTokens, bytes32 _proposalHash) public view returns (bool) {
+      var prop = proposals[proposalNumber];
+      bool dataMatch = prop.proposalHash == _proposalHash;
       bool ended = now >= prop.startTime.add(proposalDuration);
       bool yes = prop.yesVotes >= prop.noVotes;
       uint256 totalVotes =  prop.yesVotes.add(prop.noVotes);
-      bool minThreshold = totalVotes >= (_totalLockedTokens.mul(voteThreshold)).div(100);
+      bool minThreshold = totalVotes >= (totalLockedTokens.mul(voteThreshold)).div(100);
       if (dataMatch && ended && yes && minThreshold) {
           return true;
       } else {

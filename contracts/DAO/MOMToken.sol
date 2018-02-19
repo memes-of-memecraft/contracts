@@ -118,7 +118,7 @@ contract LockableToken is StandardToken {
     }
 
     function lockedBalance(address _owner) public constant returns (uint256 lockedAmount) {
-        return balances[_owner];
+        return lockedTokens[_owner];
     }
 }
 
