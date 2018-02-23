@@ -3,22 +3,26 @@ import "./SafeMath.sol";
 import "./Ownable.sol";
 
 contract DAOInterface {
+    uint256 public totalSupply;
+    uint256 public totalLockedTokens;
     function lockedBalance(address) public constant returns (uint256);
 }
 
-// Proposer is the voting mechanism for the DAO
-// This initial version will be replaced in the future
-// Owner of contract will be set to MemeDAO.sol
+// Proposer is the DAO voting mechanism
+// Proposer will be replaced with an improved contract in the future
+// Owner will be set to MemeDAO.sol
 contract Proposer is Ownable {
   using SafeMath for uint256;
 
   event Vote(address indexed voter, bool indexed vote, uint256 indexed voteAmount);
-  event ProposedVote(address indexed proposer, uint256 indexed proposalNumber);
+  event NewProposal(address indexed proposer, uint256 indexed proposalNumber);
 
-  uint256 public proposalDuration = 8 hours;
-  uint256 public voteThreshold = 50;
+  uint256 public proposalDuration;
+  uint256 public voteThreshold;
+  uint256 public winMargin;
   mapping(uint256 => Proposal) proposals;
   mapping(uint256 => bool) proposalExists;
+  address public daoAddress;
   DAOInterface dao;
 
   struct Proposal {
@@ -30,51 +34,77 @@ contract Proposer is Ownable {
      mapping(address => bool) alreadyVoted;
   }
 
-
-  function propose(uint256 proposalNumber, uint256 value, address destination, bytes data) public {
-      require(proposalExists[proposalNumber] == false);
-      require(dao.lockedBalance(msg.sender) > 0);
-      bytes32 newProposalHash = keccak256(destination, value, data);
-      Proposal memory newProposal = Proposal(0, 0, now, newProposalHash, false);
-      proposals[proposalNumber] = newProposal;
-      proposalExists[proposalNumber] == true;
-      ProposedVote(msg.sender, proposalNumber);
+  function Proposer() public {
+      proposalDuration = 8;
+      voteThreshold = 50;
+      winMargin = 1;
   }
 
-  function vote(uint256 proposalNumber, bool voteType) public {
-      var prop = proposals[proposalNumber];
+  function submitProposal(uint256 _proposalNumber, uint256 _value, address _destination, bytes _data) public {
+      require(proposalExists[_proposalNumber] == false);
+      require(dao.lockedBalance(msg.sender) > 0);
+      bytes32 newProposalHash = keccak256(_destination, _value, _data);
+      Proposal memory newProposal = Proposal(0, 0, now, newProposalHash, false);
+      proposals[_proposalNumber] = newProposal;
+      proposalExists[_proposalNumber] == true;
+      NewProposal(msg.sender, _proposalNumber);
+  }
+
+  function vote(uint256 _proposalNumber, bool _yes) public {
+      var prop = proposals[_proposalNumber];
       require(prop.alreadyVoted[msg.sender] == false);
       require(now <= prop.startTime.add(proposalDuration));
       uint256 voteCount = dao.lockedBalance(msg.sender);
       require(voteCount > 0);
-      if (voteType) {
+      if (_yes) {
           prop.yesVotes = prop.yesVotes.add(voteCount);
       } else {
           prop.noVotes = prop.noVotes.add(voteCount);
       }
-      Vote(msg.sender, voteType, voteCount);
+      Vote(msg.sender, _yes, voteCount);
       prop.alreadyVoted[msg.sender] = true;
   }
-  
-  function executionSuccess(uint256 proposalNumber) public onlyOwner returns (bool) {
-     var prop = proposals[proposalNumber];
-     prop.enacted = true;
+
+  function updateDAO(address _daoAddress) public onlyOwner {
+      dao = DAOInterface(_daoAddress);
+      daoAddress = _daoAddress;
+  }
+
+  function updateProposalDuration(uint256 _proposalDuration) public onlyOwner {
+      proposalDuration = _proposalDuration;
+  }
+
+  function updateVoteThreshold(uint256 _voteThreshold) public onlyOwner {
+      require(_voteThreshold > 0 && _voteThreshold <= 100);
+      voteThreshold = _voteThreshold;
+  }
+
+  function updateWinMargin(uint256 _winMargin) public onlyOwner {
+      require(_winMargin < dao.totalSupply());
+      winMargin = _winMargin;
+  }
+
+  function executionSuccess(uint256 _proposalNumber) public onlyOwner returns (bool) {
+     proposals[_proposalNumber].enacted = true;
      return true;
   }
 
-  function updateDAO(address newAddress) public onlyOwner {
-      dao = DAOInterface(newAddress);
+  function executionAllowed(
+      uint256 _proposalNumber,
+      bytes32 _proposalHash
+  )
+      public
+      view
+      returns (bool)
+  {
+      require(proposals[_proposalNumber].enacted == false);
+      uint256 _totalLockedTokens = dao.totalLockedTokens();
+      require(_totalLockedTokens > 0);
+      require(votePassed(_proposalNumber, _totalLockedTokens, _proposalHash));
+      return true;
   }
 
-  function updateProposalDuration(uint256 newDuration) public onlyOwner {
-      proposalDuration = newDuration;
-  }
-
-  function updateVoteThreshold(uint256 newThreshold) public onlyOwner {
-      voteThreshold = newThreshold;
-  }
-
-  function viewProposal(uint256 proposalNumber) public view returns (
+  function viewProposal(uint256 _proposalNumber) public view returns (
       uint256 yesVotes,
       uint256 noVotes,
       uint256 startTime,
@@ -82,20 +112,28 @@ contract Proposer is Ownable {
       bool enacted
   )
   {
-      yesVotes = proposals[proposalNumber].yesVotes;
-      noVotes = proposals[proposalNumber].noVotes;
-      startTime = proposals[proposalNumber].startTime;
-      proposalHash = proposals[proposalNumber].proposalHash;
-      enacted = proposals[proposalNumber].enacted;
+      yesVotes = proposals[_proposalNumber].yesVotes;
+      noVotes = proposals[_proposalNumber].noVotes;
+      startTime = proposals[_proposalNumber].startTime;
+      proposalHash = proposals[_proposalNumber].proposalHash;
+      enacted = proposals[_proposalNumber].enacted;
   }
 
-  function votePassed(uint256 proposalNumber, uint256 totalLockedTokens, bytes32 _proposalHash) public view returns (bool) {
-      var prop = proposals[proposalNumber];
+  function votePassed(
+      uint256 _proposalNumber,
+      uint256 _totalLockedTokens,
+      bytes32 _proposalHash
+  )
+      internal
+      view
+      returns (bool)
+  {
+      var prop = proposals[_proposalNumber];
       bool dataMatch = prop.proposalHash == _proposalHash;
       bool ended = now >= prop.startTime.add(proposalDuration);
-      bool yes = prop.yesVotes >= prop.noVotes;
+      bool yes = prop.yesVotes > prop.noVotes.add(winMargin);
       uint256 totalVotes =  prop.yesVotes.add(prop.noVotes);
-      bool minThreshold = totalVotes >= (totalLockedTokens.mul(voteThreshold)).div(100);
+      bool minThreshold = totalVotes >= (_totalLockedTokens.mul(voteThreshold)).div(100);
       if (dataMatch && ended && yes && minThreshold) {
           return true;
       } else {

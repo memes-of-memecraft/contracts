@@ -74,8 +74,12 @@ contract StandardToken is ERC20Token {
 }
 
 
-contract LockableToken is StandardToken {
+contract MOMToken is StandardToken {
     using SafeMath for uint256;
+
+    string public constant name = "MOM Token";
+    string public constant symbol = "MOM";
+    uint8 public constant decimals = 18;
 
     uint256 public totalLockedTokens;
     mapping(address => uint256) lockedTokens;
@@ -94,6 +98,7 @@ contract LockableToken is StandardToken {
         totalLockedTokens = totalLockedTokens.sub(_amount);
     }
 
+    // Override transfer and transferFrom functions to prevent transferring locked tokens  
     function transfer(address _to, uint256 _value) public returns (bool) {
         require(_to != address(0));
         uint256 availibleBalance = balances[msg.sender].sub(lockedTokens[msg.sender]);
@@ -120,11 +125,4 @@ contract LockableToken is StandardToken {
     function lockedBalance(address _owner) public constant returns (uint256 lockedAmount) {
         return lockedTokens[_owner];
     }
-}
-
-
-contract MOMToken is LockableToken {
-    string public constant name = "MOM Token";
-    string public constant symbol = "MOM";
-    uint8 public constant decimals = 18;
 }
