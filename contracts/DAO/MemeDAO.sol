@@ -6,9 +6,9 @@ contract ProposerInterface{
     function executionSuccess(uint256 _proposalNumber) public returns (bool);
 }
 
-// MemeDAO is the set as the owner of both the Proposer (voting) and MotherOfMemes (ERC721)
+// MemeDAO will be the owner of both Proposer.sol (voting) and MotherOfMemes.sol (ERC721 issuance)
 // Ownership of MOMToken represents ownership and voting rights in the DAO
-// The DAO can will vote to replace Proposer with an improved mechanism in the future
+// DAO will vote to replace Proposer.sol with an improved mechanism in the future
 contract MemeDAO is MOMToken {
     event Execution(uint256 indexed proposalNumber, bytes32 indexed proposalHash);
 
